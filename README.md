@@ -67,26 +67,44 @@ Both providers support **multi-account credential pools**. Add two accounts, fiv
 
 ---
 
-## 12 models, 2 providers, 0 API cost
+## 28 models, 2 providers, 0 API cost
 
 | Provider | Model ID | What you get |
 |----------|----------|------|
+| Claude | `opus-5-5` | Claude Opus 5.5, 1M context |
+| Claude | `opus-5` | Claude Opus 5, 1M context |
+| Claude | `sonnet-5-5` | Claude Sonnet 5.5, 1M context |
+| Claude | `sonnet-5` | Claude Sonnet 5, 1M context |
+| Claude | `fable-5-1` | Claude Fable 5.1, 1M context |
 | Claude | `fable-5` | Claude Fable 5, 1M context |
 | Claude | `opus-4-8` | Claude Opus 4.8, 1M context |
 | Claude | `opus-4-7` | Claude Opus 4.7, 1M context |
 | Claude | `opus-4-6` | Claude Opus 4.6, 1M context |
-| Claude | `sonnet-5` | Claude Sonnet 5, latest — 1M context |
 | Claude | `sonnet-4-6` | Claude Sonnet 4.6, 1M context |
 | Claude | `haiku-4-5` | Claude Haiku 4.5, 1M context |
-| ChatGPT | `gpt-5.4` | GPT 5.4, 200K context |
-| ChatGPT | `gpt-5.4-mini` | GPT 5.4 Mini, 200K context |
-| ChatGPT | `gpt-5.1-codex` | GPT 5.1 Codex |
-| ChatGPT | `gpt-5.1-codex-mini` | GPT 5.1 Codex Mini |
-| ChatGPT | `gpt-5.1-codex-max` | GPT 5.1 Codex Max |
+| ChatGPT | `gpt-6.1-sol` | GPT 6.1 Sol, 272K context |
+| ChatGPT | `gpt-6-sol` | GPT 6 Sol (max reasoning), 1.05M context |
+| ChatGPT | `gpt-6` | Alias of GPT 6 Sol |
+| ChatGPT | `gpt-6-astra` | GPT 6 Astra (high reasoning), 1.05M context |
+| ChatGPT | `gpt-6-luna` | GPT 6 Luna (fast), 1.05M context |
+| ChatGPT | `gpt-5.6-sol` | GPT 5.6 Sol, 1.05M context |
+| ChatGPT | `gpt-5.6` | Alias of GPT 5.6 Sol |
+| ChatGPT | `gpt-5.6-sol-pro` | GPT 5.6 Sol Pro, 1.05M context |
+| ChatGPT | `gpt-5.6-pro` | GPT 5.6 Pro, 1.05M context |
+| ChatGPT | `gpt-5.6-terra` | GPT 5.6 Terra (balanced), 1.05M context |
+| ChatGPT | `gpt-5.5` | GPT 5.5, 400K context |
+| ChatGPT | `gpt-5.4` | GPT 5.4, 400K context |
+| ChatGPT | `gpt-5.4-mini` | GPT 5.4 Mini, 400K context |
+| ChatGPT | `gpt-5.3-codex` | GPT 5.3 Codex, 400K context |
+| ChatGPT | `gpt-5.1-codex` | GPT 5.1 Codex, 400K context |
+| ChatGPT | `gpt-5.1-codex-mini` | GPT 5.1 Codex Mini, 128K context |
+| ChatGPT | `gpt-5.1-codex-max` | GPT 5.1 Codex Max, 400K context |
+
+The GPT models need a ChatGPT Pro login in your token pool.
 
 ### Model aliases
 
-Every model accepts short aliases — `fable` and `fable-5` both resolve to `claude-fable-5`; `opus-4-8` resolves to `claude-opus-4-8`; `codex`, `codex-mini`, and `codex-max` map to the `gpt-5.1-codex*` family. Provider prefixes like `indigo/opus-4-6` are stripped automatically. Unknown models fall back to Sonnet.
+Every model accepts short aliases: `fable` resolves to `claude-fable-5-1`, `opus-5.5` to `claude-opus-5-5`, `sonnet-5.5` to `claude-sonnet-5-5`. On the ChatGPT side, `luna`, `astra`, `sol`, `terra`, `sol-pro` and `pro` map to their GPT 6 / GPT 5.6 models, `gpt-latest` maps to `gpt-6-sol`, `codex-latest` to `gpt-5.3-codex`, and `codex`, `codex-mini`, `codex-max` to the `gpt-5.1-codex*` family. Provider prefixes like `indigo/opus-4-6` are stripped automatically. Unknown models fall back to Sonnet.
 
 You can also pin a request to a specific account in your pool with a suffix: `opus-4-6:acct2-alice` routes to the token whose `id` is `acct2-alice` instead of letting LRU rotation pick. `GET /v1/models` lists every alias and per-account variant.
 
