@@ -1,0 +1,23 @@
+{
+  "_comment": "Copy this file to ~/.substation/token-pool.json and fill in your own credentials. NEVER commit the real file.",
+  "_anthropic": "OAuth tokens from a Claude Max/Pro subscription. Get one by logging into Claude Code (`claude setup-token`) or copy the token from ~/.claude/auth-profiles.json. Tokens start with sk-ant-oat.",
+  "_openai": "ChatGPT Plus/Pro OAuth tokens. Run `node scripts/substation-auth chatgpt` — it opens a browser, runs the OAuth PKCE flow, and writes the entry here for you (including the refreshToken).",
+  "tokens": [
+    {
+      "id": "acct1-yourname",
+      "provider": "anthropic",
+      "token": "sk-ant-oat01-REPLACE-WITH-YOUR-OWN-CLAUDE-OAUTH-TOKEN"
+    },
+    {
+      "id": "acct2-secondaccount",
+      "provider": "anthropic",
+      "token": "sk-ant-oat01-ADD-AS-MANY-ACCOUNTS-AS-YOU-HAVE"
+    },
+    {
+      "id": "chatgpt-yourname",
+      "provider": "openai",
+      "token": "REPLACE-WITH-CHATGPT-OAUTH-ACCESS-TOKEN",
+      "refreshToken": "REPLACE-WITH-CHATGPT-OAUTH-REFRESH-TOKEN"
+    }
+  ]
+}

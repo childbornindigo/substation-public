@@ -1,0 +1,47 @@
+node_modules/
+# No build step exists (verified 2026-07-10 release audit — no tsconfig/bundler/
+# build script) — dist/index.js IS the deployable artifact launchd runs, so it
+# must be committed as source of truth. Historical dist/*.bak-* snapshots stay
+# ignored (local-only, not for distribution).
+dist/*
+!dist/index.js
+!dist/sdk-process-cap.js
+!dist/auth-policy.js
+!dist/reasoning-effort.js
+
+# Secrets — NEVER commit these
+token-pool.json
+pool-state.json
+auth-profiles.json
+*.log
+*.log.old
+
+# Runtime data
+.substation/
+data/
+.vercel
+
+# Non-SubStation artifacts (prevent backup drift)
+/graphify-out/
+/scripts/*
+!/scripts/substation-auth
+/wiki-output/
+/memory/
+/market-intelligence/
+/screenshots/
+/fb-marketplace-listings/
+/wiki-output.md
+*.db
+video-test/
+Wiki/
+demo-board*
+*.mp4
+*.wav
+*.vtt
+*.jpg
+~
+
+# Source backup snapshots — local-only, never distribute (public repo)
+src/*.bak-*
+# Stray zero-byte scratch files from botched shell redirects
+0.[0-9]*

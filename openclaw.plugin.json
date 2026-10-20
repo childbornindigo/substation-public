@@ -1,0 +1,18 @@
+{
+  "id": "substation",
+  "name": "SubStation",
+  "description": "Multi-provider LLM proxy — route through Claude Max and ChatGPT Pro subscriptions with token rotation and cross-provider failover",
+  "providers": ["indigo"],
+  "modelSupport": {
+    "modelPrefixes": ["indigo/"]
+  },
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "port": {
+        "type": "number",
+        "description": "SubStation proxy port (default: 8403)"
+      }
+    }
+  }
+}

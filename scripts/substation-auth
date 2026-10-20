@@ -1,0 +1,282 @@
+#!/usr/bin/env node
+// substation-auth — Set up OAuth tokens for SubStation
+//
+// Usage:
+//   substation-auth chatgpt    # OAuth PKCE flow for ChatGPT Plus/Pro
+//   substation-auth status     # Show current token pool
+//
+// Stores tokens in ~/.substation/token-pool.json
+
+import { createServer } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { randomBytes, createHash } from 'node:crypto';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+
+const POOL_FILE = join(homedir(), '.substation', 'token-pool.json');
+const SUBSTATION_DIR = join(homedir(), '.substation');
+const OPENAI_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+const OPENAI_AUTH_URL = 'https://auth.openai.com/oauth/authorize';
+const OPENAI_TOKEN_URL = 'https://auth.openai.com/oauth/token';
+const CALLBACK_PORT = 1455;
+const CALLBACK_PATH = '/auth/callback';
+
+// Ensure dir
+try { mkdirSync(SUBSTATION_DIR, { recursive: true }); } catch {}
+
+// ---------------------------------------------------------------------------
+// Pool file helpers
+// ---------------------------------------------------------------------------
+
+function loadPool() {
+  try {
+    return JSON.parse(readFileSync(POOL_FILE, 'utf8'));
+  } catch {
+    return { tokens: [] };
+  }
+}
+
+function savePool(data) {
+  writeFileSync(POOL_FILE, JSON.stringify(data, null, 2) + '\n');
+}
+
+function addTokenToPool(id, provider, token, refreshToken) {
+  const pool = loadPool();
+  // Update existing or add new
+  const existing = pool.tokens.findIndex(t => t.id === id);
+  const entry = { id, provider, token };
+  if (refreshToken) entry.refreshToken = refreshToken;
+  if (existing >= 0) {
+    pool.tokens[existing] = entry;
+  } else {
+    pool.tokens.push(entry);
+  }
+  savePool(pool);
+}
+
+// ---------------------------------------------------------------------------
+// PKCE helpers
+// ---------------------------------------------------------------------------
+
+function generateCodeVerifier() {
+  return randomBytes(64).toString('base64url');
+}
+
+function generateCodeChallenge(verifier) {
+  return createHash('sha256').update(verifier).digest('base64url');
+}
+
+function generateState() {
+  return randomBytes(32).toString('hex');
+}
+
+// ---------------------------------------------------------------------------
+// ChatGPT OAuth PKCE flow
+// ---------------------------------------------------------------------------
+
+async function authChatGPT() {
+  console.log('=== SubStation — ChatGPT Plus/Pro OAuth Setup ===\n');
+
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+  const state = generateState();
+
+  const authUrl = new URL(OPENAI_AUTH_URL);
+  authUrl.searchParams.set('client_id', OPENAI_CLIENT_ID);
+  authUrl.searchParams.set('redirect_uri', `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', 'openid profile email offline_access');
+  authUrl.searchParams.set('code_challenge', codeChallenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('state', state);
+
+  console.log('Opening browser for OpenAI login...\n');
+
+  // Start callback server
+  const result = await new Promise((resolve, reject) => {
+    const server = createServer((req, res) => {
+      const url = new URL(req.url, `http://localhost:${CALLBACK_PORT}`);
+
+      if (url.pathname !== CALLBACK_PATH) {
+        res.writeHead(404);
+        res.end('Not found');
+        return;
+      }
+
+      const code = url.searchParams.get('code');
+      const returnedState = url.searchParams.get('state');
+      const error = url.searchParams.get('error');
+
+      if (error) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body><h2>Authentication Failed</h2><p>Error: ' + error + '</p><p>You can close this tab.</p></body></html>');
+        server.close();
+        reject(new Error(`OAuth error: ${error}`));
+        return;
+      }
+
+      if (returnedState !== state) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body><h2>Authentication Failed</h2><p>State mismatch (CSRF protection).</p><p>You can close this tab.</p></body></html>');
+        server.close();
+        reject(new Error('State mismatch'));
+        return;
+      }
+
+      if (!code) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body><h2>Authentication Failed</h2><p>No authorization code received.</p><p>You can close this tab.</p></body></html>');
+        server.close();
+        reject(new Error('No code received'));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end('<html><body><h2>Authentication Successful!</h2><p>You can close this tab and return to the terminal.</p></body></html>');
+      server.close();
+      resolve(code);
+    });
+
+    server.listen(CALLBACK_PORT, '127.0.0.1', () => {
+      console.log(`Callback server listening on http://127.0.0.1:${CALLBACK_PORT}`);
+      console.log(`\nIf the browser didn't open, visit this URL:\n`);
+      console.log(authUrl.toString());
+      console.log('');
+
+      // Open browser
+      try {
+        execSync(`open "${authUrl.toString()}"`, { stdio: 'ignore' });
+      } catch {
+        // Non-macOS or open failed — user will use the printed URL
+      }
+    });
+
+    // Timeout after 5 minutes
+    setTimeout(() => {
+      server.close();
+      reject(new Error('Timeout — no callback received within 5 minutes'));
+    }, 300000);
+  });
+
+  console.log('\nGot authorization code, exchanging for tokens...');
+
+  // Exchange code for tokens
+  const tokens = await new Promise((resolve, reject) => {
+    const body = JSON.stringify({
+      grant_type: 'authorization_code',
+      code: result,
+      redirect_uri: `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`,
+      code_verifier: codeVerifier,
+      client_id: OPENAI_CLIENT_ID,
+    });
+
+    const req = httpsRequest({
+      hostname: 'auth.openai.com',
+      path: '/oauth/token',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(new Error(`Failed to parse token response: ${e.message}`));
+          }
+        } else {
+          reject(new Error(`Token exchange failed (${res.statusCode}): ${data.slice(0, 300)}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+
+  // Generate an ID for this token
+  const existingPool = loadPool();
+  const openaiCount = existingPool.tokens.filter(t => t.provider === 'openai').length;
+  const tokenId = `chatgpt-pro-${openaiCount + 1}`;
+
+  addTokenToPool(tokenId, 'openai', tokens.access_token, tokens.refresh_token);
+
+  console.log(`\nToken saved to ${POOL_FILE}`);
+  console.log(`  ID: ${tokenId}`);
+  console.log(`  Provider: openai`);
+  console.log(`  Access token: ...${tokens.access_token.slice(-12)}`);
+  console.log(`  Refresh token: ${tokens.refresh_token ? 'yes' : 'no'}`);
+  console.log(`  Expires in: ${tokens.expires_in ? Math.round(tokens.expires_in / 3600) + 'h' : 'unknown'}`);
+  console.log(`\nDone! Restart OpenClaw to pick up the new token.`);
+}
+
+// ---------------------------------------------------------------------------
+// Status
+// ---------------------------------------------------------------------------
+
+function showStatus() {
+  console.log('=== SubStation Token Pool ===\n');
+  const pool = loadPool();
+
+  if (pool.tokens.length === 0) {
+    console.log('No tokens configured.\n');
+    console.log('Add tokens:');
+    console.log('  substation-auth chatgpt    # OAuth flow for ChatGPT Plus/Pro');
+    console.log('  (Claude tokens auto-loaded from auth-profiles.json)');
+    return;
+  }
+
+  for (const t of pool.tokens) {
+    const suffix = t.token ? `...${t.token.slice(-12)}` : '?';
+    const refresh = t.refreshToken ? ' (has refresh)' : '';
+    console.log(`  ${t.id}  [${t.provider}]  ${suffix}${refresh}`);
+  }
+  console.log(`\nTotal: ${pool.tokens.length} tokens`);
+  console.log(`  Anthropic: ${pool.tokens.filter(t => t.provider === 'anthropic').length}`);
+  console.log(`  OpenAI: ${pool.tokens.filter(t => t.provider === 'openai').length}`);
+
+  // Also show auth-profiles tokens that will be auto-loaded
+  try {
+    const apPath = join(homedir(), '.openclaw', 'agents', 'main', 'agent', 'auth-profiles.json');
+    const ap = JSON.parse(readFileSync(apPath, 'utf8'));
+    const oauthProfiles = Object.entries(ap.profiles || {})
+      .filter(([id, p]) => id.startsWith('anthropic:') && p.token);
+    if (oauthProfiles.length > 0) {
+      console.log(`\nAuto-loaded from auth-profiles.json:`);
+      for (const [id, p] of oauthProfiles) {
+        const suffix = p.token.slice(-12);
+        console.log(`  ap:${id}  [anthropic]  ...${suffix}`);
+      }
+    }
+  } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+const command = process.argv[2] || 'status';
+
+switch (command) {
+  case 'chatgpt':
+  case 'openai':
+    authChatGPT().catch(e => {
+      console.error(`\nError: ${e.message}`);
+      process.exit(1);
+    });
+    break;
+  case 'status':
+    showStatus();
+    break;
+  default:
+    console.log('Usage:');
+    console.log('  substation-auth chatgpt    # Set up ChatGPT Plus/Pro OAuth');
+    console.log('  substation-auth status     # Show token pool');
+    process.exit(1);
+}

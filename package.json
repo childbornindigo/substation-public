@@ -1,0 +1,35 @@
+{
+  "name": "substation",
+  "version": "0.6.3",
+  "description": "SubStation — multi-provider LLM proxy for Claude Max and ChatGPT Pro subscriptions at zero API cost",
+  "type": "module",
+  "main": "src/index.js",
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "providers": [
+      "indigo"
+    ]
+  },
+  "scripts": {
+    "auth": "node scripts/substation-auth"
+  },
+  "keywords": [
+    "substation",
+    "claude",
+    "chatgpt",
+    "codex",
+    "proxy",
+    "llm"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/childbornindigo/substation-public.git"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.280",
+    "@supabase/supabase-js": "^2.106.0"
+  }
+}
